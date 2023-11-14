@@ -11,10 +11,10 @@
 #include <string.h>
 #include <string>
 
+using namespace std;
+
 #define NUM_INSTR_DESTINATIONS 2
 #define NUM_INSTR_SOURCES 4
-
-using namespace std;
 
 typedef struct trace_instr_format {
     unsigned long long int ip;  // instruction pointer (program counter) value
@@ -318,7 +318,7 @@ VOID Instruction(INS ins, VOID *v)
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BeginInstruction, IARG_INST_PTR, IARG_UINT32, opcode, IARG_END);
 
     // instrument branch instructions
-    if(INS_IsBranch(ins))
+    if(INS_IsBranch(ins) && !INS_IsXbegin(ins) && !INS_IsXend(ins))
         INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BranchOrNot, IARG_BRANCH_TAKEN, IARG_END);
 
     // instrument register reads

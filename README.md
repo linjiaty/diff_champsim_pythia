@@ -1,139 +1,242 @@
 <p align="center">
-  <h1 align="center"> ChampSim </h1>
-  <p> ChampSim is a trace-based simulator for a microarchitecture study. You can sign up to the public mailing list by sending an empty mail to champsim+subscribe@googlegroups.com. Traces for the 3rd Data Prefetching Championship (DPC-3) can be found from here (https://dpc3.compas.cs.stonybrook.edu/?SW_IS). A set of traces used for the 2nd Cache Replacement Championship (CRC-2) can be found from this link. (http://bit.ly/2t2nkUj) <p>
+  <a href="https://github.com/CMU-SAFARI/Pythia">
+    <img src="logo.png" alt="Logo" width="424.8" height="120">
+  </a>
+  <h3 align="center">A Customizable Hardware Prefetching Framework Using Online Reinforcement Learning
+  </h3>
 </p>
 
-# Clone ChampSim repository
+<p align="center">
+    <a href="https://github.com/CMU-SAFARI/Pythia/blob/master/LICENSE">
+        <img alt="GitHub" src="https://img.shields.io/badge/License-MIT-yellow.svg">
+    </a>
+    <a href="https://github.com/CMU-SAFARI/Pythia/releases">
+        <img alt="GitHub release" src="https://img.shields.io/github/release/CMU-SAFARI/Pythia">
+    </a>
+    <a href="https://doi.org/10.5281/zenodo.5520125"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.5520125.svg" alt="DOI"></a>
+</p>
+
+<!-- ## Update
+### Aug 13th, 2021
+It has been brought to our attention that the Ligra and PARSEC-2.1 traces required to evaluate the artifact are not correctly getting downloaded using the `download_traces.pl` script. For now, we ask the reader to download **all** Ligra and PARSEC-2.1 traces (~10 GB) by (1) clicking on the mega link (see [Section 5](https://github.com/CMU-SAFARI/Pythia#more-traces)), and (2) clicking on "Download as ZIP" option. We are working with megatools developer to resolve the issue soon.  -->
+
+<details open="open">
+  <summary>Table of Contents</summary>
+  <ol>
+    <li><a href="#what-is-pythia">What is Pythia?</a></li>
+    <li><a href="#about-the-framework">About the Framework</a></li>
+    <li><a href="#prerequisites">Prerequisites</a></li>
+    <li><a href="#installation">Installation</a></li>
+    <li><a href="#preparing-traces">Preparing Traces</a></li>
+    <ul>
+      <li><a href="#more-traces">More Traces</a></li>
+    </ul>
+    <li><a href="#experimental-workflow">Experimental Workflow</a></li>
+      <ul>
+        <li><a href="#launching-experiments">Launching Experiments</a></li>
+        <li><a href="#rolling-up-statistics">Rolling up Statistics</a></li>
+      </ul>
+    </li>
+    <li><a href="#hdl-implementation">HDL Implementation</a></li>
+    <li><a href="#code-walkthrough">Code Walkthrough</a></li>
+    <li><a href="#citation">Citation</a></li>
+    <li><a href="#license">License</a></li>
+    <li><a href="#contact">Contact</a></li>
+    <li><a href="#acknowledgements">Acknowledgements</a></li>
+  </ol>
+</details>
+
+## What is Pythia?
+
+> Pythia is a hardware-realizable, light-weight data prefetcher that uses reinforcement learning to generate accurate, timely, and system-aware prefetch requests. 
+
+Pythia formulates hardware prefetching as a reinforcement learning task. For every demand request, Pythia observes multiple different types of program context information to take a prefetch decision. For every prefetch decision, Pythia receives a numerical reward that evaluates prefetch quality under the current memory bandwidth utilization. Pythia uses this reward to reinforce the correlation between program context information and prefetch decision to generate highly accurate, timely, and system-aware prefetch requests in the future.
+
+Pythia is presetend at MICRO 2021.
+
+> _Rahul Bera, Konstantinos Kanellopoulos, Anant V. Nori, Taha Shahroodi, Sreenivas Subramoney, Onur Mutlu, "[Pythia: A Customizable Hardware Prefetching Framework Using Online Reinforcement Learning](https://arxiv.org/pdf/2109.12021.pdf)", In Proceedings of the 54th Annual IEEE/ACM International Symposium on Microarchitecture (MICRO), 2021_
+
+## About The Framework
+
+Pythia is implemented in [ChampSim simulator](https://github.com/ChampSim/ChampSim). We have significantly modified the prefetcher integration pipeline in ChampSim to add support to a wide range of prior prefetching proposals mentioned below:
+
+* Stride [Fu+, MICRO'92]
+* Streamer [Chen and Baer, IEEE TC'95]
+* SMS [Somogyi+, ISCA'06]
+* AMPM [Ishii+, ICS'09]
+* Sandbox [Pugsley+, HPCA'14]
+* BOP [Michaud, HPCA'16]
+* SPP [Kim+, MICRO'16]
+* Bingo [Bakshalipour+, HPCA'19]
+* SPP+PPF [Bhatia+, ISCA'19]
+* DSPatch [Bera+, MICRO'19]
+* MLOP [Shakerinava+, DPC-3'19]
+* IPCP [Pakalapati+, ISCA'20]
+
+Most of the  prefetchers (e.g., SPP [1], Bingo [2], IPCP [3]) reuse codes from [2nd]() and [3rd]() data prefetching championships (DPC). Others (e.g., AMPM [4], SMS [5]) are implemented from scratch and shows similar relative performance reported by previous works.
+
+## Prerequisites
+
+The infrastructure has been tested with the following system configuration:
+  * G++ v6.3.0 20170516
+  * CMake v3.20.2
+  * md5sum v8.26
+  * Perl v5.24.1
+  * [Megatools 1.11.0](https://megatools.megous.com) (Note that v1.9.98 does **NOT** work)
+
+## Installation
+
+0. Install necessary prequisites
+    ```bash
+    sudo apt install perl
+    ```
+1. Clone the GitHub repo
+   
+   ```bash
+   git clone https://github.com/CMU-SAFARI/Pythia.git
+   ```
+2. Clone the bloomfilter library inside Pythia home directory
+   
+   ```bash
+   cd Pythia
+   git clone https://github.com/mavam/libbf.git libbf
+   ```
+3. Build bloomfilter library. This should create the static `libbf.a` library inside `build` directory
+   
+    ```bash
+    cd libbf
+    mkdir build && cd build
+    cmake ../
+    make clean && make
+    ```
+4. Build Pythia for single/multi core using build script. This should create the executable inside `bin` directory.
+   
+   ```bash
+   cd $PYTHIA_HOME
+   # ./build_champsim.sh <l1_pref> <l2_pref> <llc_pref> <ncores>
+   ./build_champsim.sh multi multi no 1
+   ```
+   Please use `build_champsim_highcore.sh` to build ChampSim for more than four cores.
+
+5. _Set appropriate environment variables as follows:_
+
+    ```bash
+    source setvars.sh
+    ```
+
+## Preparing Traces
+0. Install the megatools executable
+
+    ```bash
+    cd $PYTHIA_HOME/scripts
+    wget https://megatools.megous.com/builds/builds/megatools-1.11.1.20230212-linux-x86_64.tar.gz
+    tar -xvf megatools-1.11.1.20230212-linux-x86_64.tar.gz 
+    ```
+> Note: The megatools link might change in the future depending on latest release. Please recheck the link if the download fails.
+
+1. Use the `download_traces.pl` perl script to download necessary ChampSim traces used in our paper.
+
+    ```bash
+    mkdir $PYTHIA_HOME/traces/
+    cd $PYTHIA_HOME/scripts/
+    perl download_traces.pl --csv artifact_traces.csv --dir ../traces/
+    ```
+> Note: The script should download **233** traces. Please check the final log for any incomplete downloads. The total size of all traces would be **~52 GB**.
+
+2. Once the trace download completes, please verify the checksum as follows. _Please make sure all traces pass the checksum test._
+
+    ```bash
+    cd $PYTHIA_HOME/traces
+    md5sum -c ../scripts/artifact_traces.md5
+    ```
+
+3. If the traces are downloaded in some other path, please change the full path in `experiments/MICRO21_1C.tlist` and `experiments/MICRO21_4C.tlist` accordingly.
+
+### More Traces
+1. We are also releasing a new set of ChampSim traces from [PARSEC 2.1](https://parsec.cs.princeton.edu) and [Ligra](https://github.com/jshun/ligra). The trace drop-points are measured using [Intel Pinplay](https://software.intel.com/content/www/us/en/develop/articles/program-recordreplay-toolkit.html) and the traces are captured by the ChampSim PIN tool. The traces can be found in the following links. To download these traces in bulk, please use the "Download as ZIP" option from mega.io web-interface.
+      * PARSEC-2.1: https://bit.ly/champsim-parsec2
+      * Ligra: https://bit.ly/champsim-ligra
+   
+2. Our simulation infrastructure is completely compatible with all prior ChampSim traces used in CRC-2 and DPC-3. One can also convert the CVP-2 traces (courtesy of Qualcomm Datacenter Technologies) to ChampSim format using [the following converter](https://github.com/ChampSim/ChampSim/tree/master/cvp_tracer). The traces can be found in the follwing websites:
+     * CRC-2 traces: http://bit.ly/2t2nkUj
+     * DPC-3 traces: http://hpca23.cse.tamu.edu/champsim-traces/speccpu/
+     * CVP-2 traces: https://www.microarch.org/cvp1/cvp2/rules.html
+
+## Experimental Workflow
+Our experimental workflow consists of two stages: (1) launching experiments, and (2) rolling up statistics from experiment outputs.
+
+### Launching Experiments
+1. To create necessary experiment commands in bulk, we will use `scripts/create_jobfile.pl`
+2. `create_jobfile.pl` requires three necessary arguments:
+      * `exe`: the full path of the executable to run
+      * `tlist`: contains trace definitions
+      * `exp`: contains knobs of the experiements to run
+3. Create experiments as follows. _Please make sure the paths used in tlist and exp files are appropriate_.
+   
+      ```bash
+      cd $PYTHIA_HOME/experiments/
+      perl ../scripts/create_jobfile.pl --exe $PYTHIA_HOME/bin/perceptron-multi-multi-no-ship-1core --tlist MICRO21_1C.tlist --exp MICRO21_1C.exp --local 1 > jobfile.sh
+      ```
+
+4. Go to a run directory (or create one) inside `experiements` to launch runs in the following way:
+      ```bash
+      cd experiments_1C
+      source ../jobfile.sh
+      ```
+
+5. If you have [slurm](https://slurm.schedmd.com) support to launch multiple jobs in a compute cluster, please provide `--local 0` to `create_jobfile.pl`
+
+### Rolling-up Statistics
+1. To rollup stats in bulk, we will use `scripts/rollup.pl`
+2. `rollup.pl` requires three necessary arguments:
+      * `tlist`
+      * `exp`
+      * `mfile`: specifies stat names and reduction method to rollup
+3. Rollup statistics as follows. _Please make sure the paths used in tlist and exp files are appropriate_.
+   
+      ```bash
+      cd experiements_1C/
+      perl ../../scripts/rollup.pl --tlist ../MICRO21_1C.tlist --exp ../MICRO21_1C.exp --mfile ../rollup_1C_base_config.mfile > rollup.csv
+      ```
+
+4. Export the `rollup.csv` file in you favourite data processor (Python Pandas, Excel, Numbers, etc.) to gain insights.
+
+## HDL Implementation
+We also implement Pythia in [Chisel HDL](https://www.chisel-lang.org) to faithfully measure the area and power cost. The implementation, along with the reports from umcL65 library, can be found the following GitHub repo. Please note that the area and power projections in the sample report is different than what is reported in the paper due to different technology.
+
+<p align="center">
+<a href="https://github.com/CMU-SAFARI/Pythia-HDL">Pythia-HDL</a>
+    <a href="https://github.com/CMU-SAFARI/Pythia-HDL">
+        <img alt="Build" src="https://github.com/CMU-SAFARI/Pythia-HDL/actions/workflows/test.yml/badge.svg">
+    </a>
+</p>
+
+## Code Walkthrough
+> Pythia was code-named Scooby (the mistery-solving dog) during the developement. So any mention of Scooby anywhere in the code inadvertently means Pythia.
+
+* The top-level files for Pythia are `prefetchers/scooby.cc` and `inc/scooby.h`. These two files declare and define the high-level functions for Pythia (e.g., `invoke_prefetcher`, `register_fill`, etc.). 
+* The released version of Pythia has two types of RL engine defined: _basic_ and _featurewise_. They differ only in terms of the QVStore organization (please refer to our [paper](arxiv.org/pdf/2109.12021.pdf) to know more about QVStore). The QVStore for _basic_ version is simply defined as a two-dimensional table, whereas the _featurewise_ version defines it as a hierarchichal organization of multiple small tables. The implementation of respective engines can be found in `src/` and `inc/` directories.
+* `inc/feature_knowledge.h` and `src/feature_knowldege.cc` define how to compute each program feature from the raw attributes of a deamand request. If you want to define your own feature, extend the enum `FeatureType` in `inc/feature_knowledge.h` and define its corresponding `process` function.
+* `inc/util.h` and `src/util.cc` contain all hashing functions used in our evaluation. Play around with them, as a better hash function can also provide performance benefits.
+
+## Citation
+If you use this framework, please cite the following paper:
 ```
-git clone https://github.com/ChampSim/ChampSim.git
+@inproceedings{bera2021,
+  author = {Bera, Rahul and Kanellopoulos, Konstantinos and Nori, Anant V. and Shahroodi, Taha and Subramoney, Sreenivas and Mutlu, Onur},
+  title = {{Pythia: A Customizable Hardware Prefetching Framework Using Online Reinforcement Learning}},
+  booktitle = {Proceedings of the 54th Annual IEEE/ACM International Symposium on Microarchitecture},
+  year = {2021}
+}
 ```
 
-# Compile
+## License
 
-ChampSim takes five parameters: Branch predictor, L1D prefetcher, L2C prefetcher, LLC replacement policy, and the number of cores. 
-For example, `./build_champsim.sh bimodal no no lru 1` builds a single-core processor with bimodal branch predictor, no L1/L2 data prefetchers, and the baseline LRU replacement policy for the LLC.
-```
-$ ./build_champsim.sh bimodal no no no no lru 1
+Distributed under the MIT License. See `LICENSE` for more information.
 
-$ ./build_champsim.sh ${BRANCH} ${L1I_PREFETCHER} ${L1D_PREFETCHER} ${L2C_PREFETCHER} ${LLC_PREFETCHER} ${LLC_REPLACEMENT} ${NUM_CORE}
-```
+## Contact
 
-# Download DPC-3 trace
+Rahul Bera - write2bera@gmail.com
 
-Professor Daniel Jimenez at Texas A&M University kindly provided traces for DPC-3. Use the following script to download these traces (~20GB size and max simpoint only).
-```
-$ cd scripts
-
-$ ./download_dpc3_traces.sh
-```
-
-# Run simulation
-
-Execute `run_champsim.sh` with proper input arguments. The default `TRACE_DIR` in `run_champsim.sh` is set to `$PWD/dpc3_traces`. <br>
-
-* Single-core simulation: Run simulation with `run_champsim.sh` script.
-
-```
-Usage: ./run_champsim.sh [BINARY] [N_WARM] [N_SIM] [TRACE] [OPTION]
-$ ./run_champsim.sh bimodal-no-no-no-no-lru-1core 1 10 400.perlbench-41B.champsimtrace.xz
-
-${BINARY}: ChampSim binary compiled by "build_champsim.sh" (bimodal-no-no-lru-1core)
-${N_WARM}: number of instructions for warmup (1 million)
-${N_SIM}:  number of instructinos for detailed simulation (10 million)
-${TRACE}: trace name (400.perlbench-41B.champsimtrace.xz)
-${OPTION}: extra option for "-low_bandwidth" (src/main.cc)
-```
-Simulation results will be stored under "results_${N_SIM}M" as a form of "${TRACE}-${BINARY}-${OPTION}.txt".<br> 
-
-* Multi-core simulation: Run simulation with `run_4core.sh` script. <br>
-```
-Usage: ./run_4core.sh [BINARY] [N_WARM] [N_SIM] [N_MIX] [TRACE0] [TRACE1] [TRACE2] [TRACE3] [OPTION]
-$ ./run_4core.sh bimodal-no-no-no-lru-4core 1 10 0 400.perlbench-41B.champsimtrace.xz \\
-  401.bzip2-38B.champsimtrace.xz 403.gcc-17B.champsimtrace.xz 410.bwaves-945B.champsimtrace.xz
-```
-Note that we need to specify multiple trace files for `run_4core.sh`. `N_MIX` is used to represent a unique ID for mixed multi-programmed workloads. 
-
-
-# Add your own branch predictor, data prefetchers, and replacement policy
-**Copy an empty template**
-```
-$ cp branch/branch_predictor.cc branch/mybranch.bpred
-$ cp prefetcher/l1d_prefetcher.cc prefetcher/mypref.l1d_pref
-$ cp prefetcher/l2c_prefetcher.cc prefetcher/mypref.l2c_pref
-$ cp prefetcher/llc_prefetcher.cc prefetcher/mypref.llc_pref
-$ cp replacement/llc_replacement.cc replacement/myrepl.llc_repl
-```
-
-**Work on your algorithms with your favorite text editor**
-```
-$ vim branch/mybranch.bpred
-$ vim prefetcher/mypref.l1d_pref
-$ vim prefetcher/mypref.l2c_pref
-$ vim prefetcher/mypref.llc_pref
-$ vim replacement/myrepl.llc_repl
-```
-
-**Compile and test**
-```
-$ ./build_champsim.sh mybranch mypref mypref mypref myrepl 1
-$ ./run_champsim.sh mybranch-mypref-mypref-mypref-myrepl-1core 1 10 bzip2_183B
-```
-
-# How to create traces
-
-We have included only 4 sample traces, taken from SPEC CPU 2006. These 
-traces are short (10 million instructions), and do not necessarily cover the range of behaviors your 
-replacement algorithm will likely see in the full competition trace list (not
-included).  We STRONGLY recommend creating your own traces, covering
-a wide variety of program types and behaviors.
-
-The included Pin Tool champsim_tracer.cpp can be used to generate new traces.
-We used Pin 3.2 (pin-3.2-81205-gcc-linux), and it may require 
-installing libdwarf.so, libelf.so, or other libraries, if you do not already 
-have them. Please refer to the Pin documentation (https://software.intel.com/sites/landingpage/pintool/docs/81205/Pin/html/)
-for working with Pin 3.2.
-
-Get this version of Pin:
-```
-wget http://software.intel.com/sites/landingpage/pintool/downloads/pin-3.2-81205-gcc-linux.tar.gz
-```
-
-**Note on compatibility**: If you are using newer linux kernels/Ubuntu versions (eg. 20.04LTS), you might run into issues (such as [[1](https://github.com/ChampSim/ChampSim/issues/102)],[[2](https://stackoverflow.com/questions/55698095/intel-pin-tools-32-bit-processsectionheaders-560-assertion-failed)],[[3](https://stackoverflow.com/questions/43589174/pin-tool-segmentation-fault-for-ubuntu-17-04)]) with the PIN3.2. ChampSim tracer works fine with newer PIN tool versions that can be downloaded from [here](https://software.intel.com/content/www/us/en/develop/articles/pin-a-binary-instrumentation-tool-downloads.html). PIN3.17 is [confirmed](https://github.com/ChampSim/ChampSim/issues/102) to work with Ubuntu 20.04.1 LTS.
-
-Once downloaded, open tracer/make_tracer.sh and change PIN_ROOT to Pin's location.
-Run ./make_tracer.sh to generate champsim_tracer.so.
-
-**Use the Pin tool like this**
-```
-pin -t obj-intel64/champsim_tracer.so -- <your program here>
-```
-
-The tracer has three options you can set:
-```
--o
-Specify the output file for your trace.
-The default is default_trace.champsim
-
--s <number>
-Specify the number of instructions to skip in the program before tracing begins.
-The default value is 0.
-
--t <number>
-The number of instructions to trace, after -s instructions have been skipped.
-The default value is 1,000,000.
-```
-For example, you could trace 200,000 instructions of the program ls, after
-skipping the first 100,000 instructions, with this command:
-```
-pin -t obj/champsim_tracer.so -o traces/ls_trace.champsim -s 100000 -t 200000 -- ls
-```
-Traces created with the champsim_tracer.so are approximately 64 bytes per instruction,
-but they generally compress down to less than a byte per instruction using xz compression.
-
-# Evaluate Simulation
-
-ChampSim measures the IPC (Instruction Per Cycle) value as a performance metric. <br>
-There are some other useful metrics printed out at the end of simulation. <br>
-
-Good luck and be a champion! <br>
-# diff_champsim_pythia
+## Acknowledgements
+We acklowledge support from SAFARI Research Group's industrial partners.
